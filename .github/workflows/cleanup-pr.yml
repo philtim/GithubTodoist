@@ -1,0 +1,54 @@
+name: Cleanup PR DNS Record
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    environment: sync
+    steps:
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host-keys: ${{ vars.SSH_HOST }}
+
+      - name: Add Host to known_hosts
+        run: |
+          ssh-keyscan -H ${{ vars.SSH_HOST }} >> ~/.ssh/known_hosts
+      - name: Remove DNS Record
+        run: |
+          SUBDOMAIN="${{ github.head_ref }}--todoist.t7lab.com"
+
+          # Find the DNS record
+          RECORD=$(ssh root@${{ vars.SSH_HOST }} 'curl -s -X GET "https://api.cloudflare.com/client/v4/zones/${{ vars.CLOUDFLARE_ZONE_ID }}/dns_records?type=A&name='$SUBDOMAIN'" \
+            -H "X-Auth-Email: ${{ vars.CLOUDFLARE_EMAIL }}" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_KEY }}" \
+            -H "Content-Type: application/json"')
+
+          RECORD_ID=$(echo "$RECORD" | jq -r '.result[0].id')
+
+          if [ "$RECORD_ID" != "null" ]; then
+            # Delete the DNS record
+            ssh root@${{ vars.SSH_HOST }} 'curl -s -X DELETE "https://api.cloudflare.com/client/v4/zones/${{ vars.CLOUDFLARE_ZONE_ID }}/dns_records/'$RECORD_ID'" \
+              -H "X-Auth-Email: ${{ vars.CLOUDFLARE_EMAIL }}" \
+              -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_KEY }}" \
+              -H "Content-Type: application/json"'
+            echo "Deleted DNS record for $SUBDOMAIN"
+          else
+            echo "No DNS record found for $SUBDOMAIN"
+          fi
+
+      - name: Remove Docker Container
+        run: |
+          ssh root@${{ vars.SSH_HOST }} "docker stop todoist-${{ github.head_ref }} || true && \
+          docker rm todoist-${{ github.head_ref }} || true"
+
+      - name: Remove NGINX todoist site
+        run: |
+          scp ./scripts/setup_nginx.sh root@${{ vars.SSH_HOST }}:/tmp/cleanup_nginx.sh
+          ssh root@${{ vars.SSH_HOST }} "chmod +x /tmp/cleanup_nginx.sh"
+          ssh root@${{ vars.SSH_HOST }} "/tmp/cleanup_nginx.sh ${{ github.head_ref }} 8085"
+          ssh root@${{ vars.SSH_HOST }} "rm /tmp/cleanup_nginx.sh"

@@ -1,0 +1,107 @@
+name: Deploy todoist
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+env:
+  PROJECT_NAME: github-todoist-sync
+  PORT: 8090
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: sync
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Create .env file
+        run: |
+          echo "TODOIST_API_TOKEN=${{ secrets.TODOIST_API_TOKEN }}" >> .env
+          echo "TODOIST_PROJECT_ID=${{ vars.TODOIST_PROJECT_ID }}" >> .env
+
+      - name: Build Docker image
+        run: |
+          docker build -t ghcr.io/${{ github.repository }}/$PROJECT_NAME:${{ github.head_ref }} .
+          docker push ghcr.io/${{ github.repository }}/$PROJECT_NAME:${{ github.head_ref }}
+
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.7.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          host-keys: ${{ vars.SSH_HOST }}
+
+      - name: Add Host to known_hosts
+        run: |
+          ssh-keyscan -H ${{ vars.SSH_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy Docker Container on Hetzner
+        run: |
+          ssh root@${{ vars.SSH_HOST }} "docker login ghcr.io -u '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' && \
+          docker stop todoist-${{ github.head_ref }} || true && \
+          docker rm todoist-${{ github.head_ref }} || true && \
+          docker pull ghcr.io/${{ github.repository }}/$PROJECT_NAME:${{ github.head_ref }} && \
+          docker run -d --name todoist-${{ github.head_ref }} -p $PORT:$PORT ghcr.io/${{ github.repository }}/$PROJECT_NAME:${{ github.head_ref }}"
+
+      - name: Configure NGINX for todoist
+        run: |
+          # Copy the script to the remote server
+          scp ./scripts/setup_nginx.sh root@${{ vars.SSH_HOST }}:/tmp/setup_nginx.sh
+          # Make the script executable
+          ssh root@${{ vars.SSH_HOST }} "chmod +x /tmp/setup_nginx.sh"
+          # Execute the script with the required parameters
+          ssh root@${{ vars.SSH_HOST }} "/tmp/setup_nginx.sh ${{ github.head_ref }} $PORT"
+          # Optionally, remove the script after execution
+          ssh root@${{ vars.SSH_HOST }} "rm /tmp/setup_nginx.sh"
+
+      - name: Check and Add DNS Record in Cloudflare
+        run: |
+          SUBDOMAIN="${{ github.head_ref }}--todoist.t7lab.com"
+
+          # First, check if the record already exists
+          CHECK_RESPONSE=$(ssh root@${{ vars.SSH_HOST }} 'curl -s -w "\n%{http_code}" --request GET \
+            --url "https://api.cloudflare.com/client/v4/zones/${{ vars.CLOUDFLARE_ZONE_ID }}/dns_records?type=A&name='$SUBDOMAIN'" \
+            --header "X-Auth-Email: ${{ vars.CLOUDFLARE_EMAIL }}" \
+            --header "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_KEY }}" \
+            --header "Content-Type: application/json"')
+
+          CHECK_HTTP_STATUS=$(echo "$CHECK_RESPONSE" | tail -n1)
+          CHECK_BODY=$(echo "$CHECK_RESPONSE" | sed '$ d')
+
+          if [ "$CHECK_HTTP_STATUS" -eq 200 ]; then
+            RECORD_COUNT=$(echo "$CHECK_BODY" | jq '.result | length')
+            if [ "$RECORD_COUNT" -gt 0 ]; then
+              echo "DNS record for $SUBDOMAIN already exists. Skipping creation."
+              exit 0
+            fi
+          else
+            echo "Failed to check existing DNS records. Status: $CHECK_HTTP_STATUS"
+            echo "Response: $CHECK_BODY"
+            exit 1
+          fi
+
+          # If we reach here, the record doesn't exist, so we create it
+              TIMESTAMP=$(date +%s)
+              CREATE_RESPONSE=$(ssh root@${{ vars.SSH_HOST }} 'curl -s -w "\n%{http_code}" --request POST \
+                --url https://api.cloudflare.com/client/v4/zones/${{ vars.CLOUDFLARE_ZONE_ID }}/dns_records \
+                --header "X-Auth-Email: ${{ vars.CLOUDFLARE_EMAIL }}" \
+                --header "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_KEY }}" \
+                --header "Content-Type: application/json" \
+                --data '"'"'{"name":"'$SUBDOMAIN'","proxied":true,"settings":{},"tags":[],"ttl":3600,"content":"${{ vars.SSH_HOST }}","type":"A","comment":"Created at '$TIMESTAMP'"}'"'"'')
+
+          CREATE_HTTP_STATUS=$(echo "$CREATE_RESPONSE" | tail -n1)
+          CREATE_BODY=$(echo "$CREATE_RESPONSE" | sed '$ d')
+
+          echo "Create HTTP Status: $CREATE_HTTP_STATUS"
+          echo "Create Response Body: $CREATE_BODY"
+
+          if [ "$CREATE_HTTP_STATUS" -eq 200 ]; then
+            echo "DNS record created successfully for $SUBDOMAIN"
+          else
+            echo "Failed to create DNS record for $SUBDOMAIN"
+            exit 1
+          fi

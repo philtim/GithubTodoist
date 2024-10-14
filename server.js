@@ -2,7 +2,7 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const axios = require("axios");
 
-require("dotenv").config({ path: "./.env.local" });
+require("dotenv").config({ path: "./.env" });
 
 const app = express();
 app.use(bodyParser.json());
@@ -82,7 +82,7 @@ app.post("/github-webhook", async (req, res) => {
 });
 
 // Start the server
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8090;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
