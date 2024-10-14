@@ -35,6 +35,7 @@ async function taskExists(issue) {
 
 // Helper function to create a Todoist task
 async function createTodoistTask(issue) {
+  console.log("create issue", issue);
   const exists = await taskExists(issue);
 
   if (exists) {
@@ -69,6 +70,8 @@ async function createTodoistTask(issue) {
 app.post("/github-webhook", async (req, res) => {
   const event = req.headers["x-github-event"];
   const issue = req.body.issue;
+
+  console.log("post-----", issue);
 
   if (event === "issues" && issue) {
     if (req.body.action === "opened") {
