@@ -27,8 +27,10 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t ghcr.io/${{ github.repository }}/$PROJECT_NAME:${{ github.head_ref }} .
-          docker push ghcr.io/${{ github.repository }}/$PROJECT_NAME:${{ github.head_ref }}
+          SHORT_SHA=${{ github.sha }}
+          SHORT_SHA=${SHORT_SHA::4}
+          docker build -t ghcr.io/${{ github.repository }}/$PROJECT_NAME:$SHORT_SHA .
+          docker push ghcr.io/${{ github.repository }}/$PROJECT_NAME:$SHORT_SHA
 
       - name: Setup SSH
         uses: webfactory/ssh-agent@v0.7.0
@@ -42,11 +44,13 @@ jobs:
 
       - name: Deploy Docker Container on Hetzner
         run: |
+          SHORT_SHA=${{ github.sha }}
+          SHORT_SHA=${SHORT_SHA::4}
           ssh root@${{ vars.SSH_HOST }} "docker login ghcr.io -u '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' && \
           docker stop todoist-${{ github.head_ref }} || true && \
           docker rm todoist-${{ github.head_ref }} || true && \
-          docker pull ghcr.io/${{ github.repository }}/$PROJECT_NAME:${{ github.head_ref }} && \
-          docker run -d --name todoist-${{ github.head_ref }} -p $PORT:$PORT ghcr.io/${{ github.repository }}/$PROJECT_NAME:${{ github.head_ref }}"
+          docker pull ghcr.io/${{ github.repository }}/$PROJECT_NAME:$SHORT_SHA && \
+          docker run -d --name todoist-$SHORT_SHA -p $PORT:$PORT ghcr.io/${{ github.repository }}/$PROJECT_NAME:$SHORT_SHA"
 
       - name: Configure NGINX for todoist
         run: |
