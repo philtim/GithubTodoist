@@ -56,13 +56,9 @@ jobs:
 
       - name: Configure NGINX for todoist
         run: |
-          # Copy the script to the remote server
           scp ./scripts/setup_nginx.sh root@${{ vars.SSH_HOST }}:/tmp/setup_nginx.sh
-          # Make the script executable
           ssh root@${{ vars.SSH_HOST }} "chmod +x /tmp/setup_nginx.sh"
-          # Execute the script with the required parameters
           ssh root@${{ vars.SSH_HOST }} "/tmp/setup_nginx.sh $SHORT_SHA $port"
-          # Optionally, remove the script after execution
           ssh root@${{ vars.SSH_HOST }} "rm /tmp/setup_nginx.sh"
 
       - name: Check and Add DNS Record in Cloudflare
