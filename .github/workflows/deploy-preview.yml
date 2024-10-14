@@ -49,9 +49,9 @@ jobs:
           SHORT_SHA=${SHORT_SHA::4}
           LOWER_REPO=$(echo "$REPO" | tr '[:upper:]' '[:lower:]')
           ssh root@${{ vars.SSH_HOST }} "docker login ghcr.io -u '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' && \
-          docker stop todoist-$SHORT_SHA || true && \
-          docker rm todoist-$SHORT_SHA || true && \
-          docker pull ghcr.io/$REPO/$PROJECT_NAME:$SHORT_SHA && \
+          docker stop todoist-$SHORT_SHA || true
+          docker rm todoist-$SHORT_SHA || true
+          docker pull ghcr.io/$REPO/$PROJECT_NAME:$SHORT_SHA
           docker run -d --name todoist-$SHORT_SHA -p $PORT:$PORT ghcr.io/${{ github.repository }}/$PROJECT_NAME:$SHORT_SHA"
 
       - name: Configure NGINX for todoist
