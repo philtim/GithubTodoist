@@ -10,7 +10,6 @@ app.use(bodyParser.json());
 const TODOIST_API_URL = "https://api.todoist.com/rest/v2/tasks";
 const TODOIST_API_TOKEN = process.env.TODOIST_API_TOKEN;
 const TODOIST_PROJECT_ID = process.env.TODOIST_PROJECT_ID;
-console.log("--------", TODOIST_PROJECT_ID, TODOIST_API_TOKEN);
 
 // Helper function to check if the task already exists in Todoist
 async function taskExists(issue) {
@@ -72,7 +71,7 @@ app.post("/github-webhook", async (req, res) => {
   const event = req.headers["x-github-event"];
   const issue = req.body.issue;
 
-  console.log("post-----", issue);
+  console.log("post-----", req);
 
   if (event === "issues" && issue) {
     if (req.body.action === "opened") {
