@@ -49,8 +49,8 @@ jobs:
           SHORT_SHA=${SHORT_SHA::4}
           REPO=$(echo "$REPO" | tr '[:upper:]' '[:lower:]')
           ssh root@${{ vars.SSH_HOST }} "docker login ghcr.io -u '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' && \
-          docker stop todoist-$SHORT_SHA || true && \
-          docker rm todoist-$SHORT_SHA || true  && \
+          docker stop todoist || true && \
+          docker rm todoist || true  && \
           docker pull ghcr.io/$REPO/$PROJECT_NAME && \
           docker run -d --name todoist -p $PORT:$PORT ghcr.io/$REPO/$PROJECT_NAME"
 
