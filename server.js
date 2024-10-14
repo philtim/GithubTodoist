@@ -6,12 +6,12 @@ require("dotenv").config({ path: "./.env" });
 
 const app = express();
 app.use(bodyParser.json());
+app.use(express.json());
 
 const TODOIST_API_URL = "https://api.todoist.com/rest/v2/tasks";
 const TODOIST_API_TOKEN = process.env.TODOIST_API_TOKEN;
 const TODOIST_PROJECT_ID = process.env.TODOIST_PROJECT_ID;
 
-// Helper function to check if the task already exists in Todoist
 async function taskExists(issue) {
   try {
     const response = await axios.get(TODOIST_API_URL, {
@@ -67,20 +67,27 @@ async function createTodoistTask(issue) {
 }
 
 // Endpoint to receive GitHub webhooks
-app.post("/github-webhook", async (req, res) => {
+app.post("/github-webhook", (req, res) => {
+  // Access the GitHub event type
   const event = req.headers["x-github-event"];
-  const issue = req.body.issue;
+  console.log(req);
 
-  console.log("post-----", req);
+  // Log the body content (this is the important part for your webhook)
+  console.log("Received event:", event);
+  console.log("Payload:", req.body);
 
-  if (event === "issues" && issue) {
-    if (req.body.action === "opened") {
-      // Create a Todoist task when an issue is created, if it doesn't already exist
-      await createTodoistTask(issue);
-    }
-    // You can extend this to handle more events like 'edited', 'closed', etc.
+  // Example of extracting some details
+  if (event === "projects_v2_item") {
+    const action = req.body.action;
+    const projectItem = req.body.projects_v2_item;
+    const organization = req.body.organization;
+
+    console.log(`Action: ${action}`);
+    console.log(`Project Item ID: ${projectItem.id}`);
+    console.log(`Organization: ${organization.login}`);
   }
 
+  // Send a response back to GitHub to acknowledge receipt
   res.status(200).send("Webhook received");
 });
 
