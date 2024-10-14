@@ -47,7 +47,7 @@ jobs:
         run: |
           SHORT_SHA=${{ github.sha }}
           SHORT_SHA=${SHORT_SHA::4}
-          REPO=$(echo "$REPO" | tr '[:upper:]' '[:lower:]')
+          REPO=$(echo "${{ github.repository }}" | tr '[:upper:]' '[:lower:]')
           ssh root@${{ vars.SSH_HOST }} "docker login ghcr.io -u '${{ github.actor }}' --password '${{ secrets.GITHUB_TOKEN }}' && \
           docker stop ghcr.io/$REPO/$PROJECT_NAME || true && \
           docker rm ghcr.io/$REPO/$PROJECT_NAME || true  && \
