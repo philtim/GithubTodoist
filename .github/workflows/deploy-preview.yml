@@ -58,7 +58,7 @@ jobs:
         run: |
           scp ./scripts/setup_nginx.sh root@${{ vars.SSH_HOST }}:/tmp/setup_nginx.sh
           ssh root@${{ vars.SSH_HOST }} "chmod +x /tmp/setup_nginx.sh"
-          ssh root@${{ vars.SSH_HOST }} "/tmp/setup_nginx.sh $port"
+          ssh root@${{ vars.SSH_HOST }} "/tmp/setup_nginx.sh ${{ vars.PORT }}"
           ssh root@${{ vars.SSH_HOST }} "rm /tmp/setup_nginx.sh"
 
       - name: Check and Add DNS Record in Cloudflare
