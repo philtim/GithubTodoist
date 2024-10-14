@@ -1,7 +1,6 @@
 #!/bin/bash
 
-branch_name=$1
-port=$2
+port=$1
 
 # Create NGINX config for the subdomain
 cat <<EOT > /etc/nginx/sites-available/todoist
@@ -18,7 +17,7 @@ server {
 EOT
 
 # Symlink to sites-enabled
-ln -s /etc/nginx/sites-available/todoist /etc/nginx/sites-enabled/
+[ ! -e /etc/nginx/sites-enabled/todoist ] && ln -s /etc/nginx/sites-available/todoist /etc/nginx/sites-enabled/
 
 # Reload NGINX to apply changes
 sudo systemctl reload nginx
