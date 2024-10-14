@@ -52,7 +52,7 @@ jobs:
           docker stop ghcr.io/$REPO/$PROJECT_NAME || true && \
           docker rm ghcr.io/$REPO/$PROJECT_NAME || true  && \
           docker pull ghcr.io/$REPO/$PROJECT_NAME && \
-          docker run -d --name ghcr.io/$REPO/$PROJECT_NAME -p $PORT:$PORT ghcr.io/$REPO/$PROJECT_NAME"
+          docker run -d --name $PROJECT_NAME -p $PORT:$PORT ghcr.io/$REPO/$PROJECT_NAME"
 
       - name: Configure NGINX for todoist
         run: |
