@@ -24,6 +24,7 @@ jobs:
         run: |
           echo "TODOIST_API_TOKEN=${{ secrets.TODOIST_API_TOKEN }}" >> .env
           echo "TODOIST_PROJECT_ID=${{ vars.TODOIST_PROJECT_ID }}" >> .env
+          echo "PORT=${{ vars.PORT }}" >> .env
 
       - name: Build Docker image
         run: |
