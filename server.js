@@ -8,6 +8,7 @@ app.use(express.json()); // Use built-in JSON parser
 const TODOIST_API_URL = "https://api.todoist.com/rest/v2/tasks";
 const { TODOIST_API_TOKEN, TODOIST_PROJECT_ID, TODOIST_SECTION_ID, PORT } =
   process.env;
+const DONE_SECTION_ID = "170393795";
 
 async function createTodoistTask({ title, body, url, issueId }) {
   try {
@@ -72,6 +73,18 @@ async function updateTodoistTask({ taskId, title, body, url }) {
         headers: { Authorization: `Bearer ${TODOIST_API_TOKEN}` },
       },
     );
+
+    if (isDone) {
+      await axios.post(
+        `${TODOIST_API_URL}/${taskId}/close`,
+        {},
+        {
+          headers: { Authorization: `Bearer ${TODOIST_API_TOKEN}` },
+        },
+      );
+      console.log(`Marked Todoist task: "${title}" as done`);
+    }
+
     console.log(`Updated Todoist task: "${title}" with ID ${taskId}`);
   } catch (error) {
     console.error("Error updating Todoist task:", error.message);
@@ -106,7 +119,18 @@ const handleIssue = async (payload) => {
       const issueData = extractData("issue", payload.issue);
       await updateTodoistTask({ taskId, ...issueData });
     }
-  } else if (["closed", "deleted"].includes(payload.action)) {
+  } else if (["closed"].includes(payload.action)) {
+    const taskId = await findTodoistTaskByGitHubIssueId(payload.issue.id);
+    if (taskId) {
+      const issueData = extractData("issue", payload.issue);
+      await updateTodoistTask({
+        taskId,
+        ...issueData,
+        sectionId: DONE_SECTION_ID,
+        isDone: true,
+      });
+    }
+  } else if (["deleted"].includes(payload.action)) {
     const taskId = await findTodoistTaskByGitHubIssueId(payload.issue.id);
     if (taskId) {
       await deleteTodoistTask(taskId);
@@ -129,7 +153,20 @@ const handlePullRequest = async (payload) => {
       const prData = extractData("pr", payload.pull_request);
       await updateTodoistTask({ taskId, ...prData });
     }
-  } else if (["closed", "deleted"].includes(payload.action)) {
+  } else if (payload.action === "closed" && payload.pull_request.merged) {
+    const taskId = await findTodoistTaskByGitHubIssueId(
+      payload.pull_request.id,
+    );
+    if (taskId) {
+      const prData = extractData("pr", payload.pull_request);
+      await updateTodoistTask({
+        taskId,
+        ...prData,
+        sectionId: DONE_SECTION_ID,
+        isDone: true,
+      });
+    }
+  } else if (["deleted"].includes(payload.action)) {
     const taskId = await findTodoistTaskByGitHubIssueId(
       payload.pull_request.id,
     );
