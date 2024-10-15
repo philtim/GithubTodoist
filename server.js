@@ -128,6 +128,7 @@ const extractData = (type, payload) => {
 };
 
 const handleIssue = async (payload) => {
+  console.log(payload);
   if (payload.action === "assigned" && payload.assignee?.login === "philtim") {
     const issueData = extractData("issue", payload.issue);
     await createTodoistTask({ ...issueData, issueId: payload.issue.id });
@@ -152,6 +153,7 @@ const handleIssue = async (payload) => {
 };
 
 const handlePullRequest = async (payload) => {
+  console.log(payload);
   if (
     ["opened", "reopened", "assigned"].includes(payload.action) &&
     payload.assignee?.login === "philtim"
