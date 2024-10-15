@@ -1,32 +1,27 @@
 const express = require("express");
-const axios = require("axios");
+const { TodoistApi } = require("@doist/todoist-api-typescript");
 require("dotenv").config();
 
 const app = express();
-app.use(express.json()); // Use built-in JSON parser
+app.use(express.json());
 
-const TODOIST_API_URL = "https://api.todoist.com/rest/v2/tasks";
 const { TODOIST_API_TOKEN, TODOIST_PROJECT_ID, TODOIST_SECTION_ID, PORT } =
   process.env;
-const DONE_SECTION_ID = "170393795";
+const TODOIST_DONE_SECTION_ID = "170393795";
+
+const api = new TodoistApi(TODOIST_API_TOKEN);
 
 async function createTodoistTask({ title, body, url, issueId }) {
   try {
-    const response = await axios.post(
-      TODOIST_API_URL,
-      {
-        content: title,
-        description: `${body}\n\nLink to GitHub issue:\n ${url}`,
-        project_id: TODOIST_PROJECT_ID,
-        section_id: TODOIST_SECTION_ID,
-        labels: [`github_issue_${issueId}`], // Add a label with the GitHub issue ID
-      },
-      {
-        headers: { Authorization: `Bearer ${TODOIST_API_TOKEN}` },
-      },
-    );
-    console.log(`Created Todoist task: "${title}" with ID ${response.data.id}`);
-    return response.data.id; // Return the Todoist task ID
+    const task = await api.addTask({
+      content: title,
+      description: `${body}\n\nLink to GitHub issue:\n ${url}`,
+      projectId: TODOIST_PROJECT_ID,
+      sectionId: TODOIST_SECTION_ID,
+      labels: [`github_issue_${issueId}`],
+    });
+    console.log(`Created Todoist task: "${title}" with ID ${task.id}`);
+    return task.id;
   } catch (error) {
     console.error("Error creating Todoist task:", error.message);
   }
@@ -34,15 +29,10 @@ async function createTodoistTask({ title, body, url, issueId }) {
 
 async function findTodoistTaskByGitHubIssueId(issueId) {
   try {
-    const response = await axios.get(TODOIST_API_URL, {
-      headers: { Authorization: `Bearer ${TODOIST_API_TOKEN}` },
-      params: { project_id: TODOIST_PROJECT_ID },
-    });
-
-    const task = response.data.find((task) =>
+    const tasks = await api.getTasks({ projectId: TODOIST_PROJECT_ID });
+    const task = tasks.find((task) =>
       task.labels.includes(`github_issue_${issueId}`),
     );
-
     return task ? task.id : null;
   } catch (error) {
     console.error("Error finding Todoist task:", error.message);
@@ -52,48 +42,32 @@ async function findTodoistTaskByGitHubIssueId(issueId) {
 
 async function deleteTodoistTask(taskId) {
   try {
-    await axios.delete(`${TODOIST_API_URL}/${taskId}`, {
-      headers: { Authorization: `Bearer ${TODOIST_API_TOKEN}` },
-    });
+    await api.deleteTask(taskId);
     console.log(`Deleted Todoist task with ID ${taskId}`);
   } catch (error) {
     console.error("Error deleting Todoist task:", error.message);
   }
 }
 
-async function updateTodoistTask({
-  taskId,
-  title,
-  body,
-  url,
-  sectionId,
-  isDone,
-}) {
+async function updateTodoistTask({ taskId, title, body, url }) {
   try {
-    await axios.post(
-      `${TODOIST_API_URL}/${taskId}`,
-      {
-        content: title,
-        description: `${body}\n\nLink to GitHub issue:\n ${url}`,
-        section_id: sectionId || TODOIST_SECTION_ID,
-      },
-      {
-        headers: { Authorization: `Bearer ${TODOIST_API_TOKEN}` },
-      },
-    );
-
-    if (isDone) {
-      await axios.post(
-        `${TODOIST_API_URL}/${taskId}/close`,
-        {},
-        {
-          headers: { Authorization: `Bearer ${TODOIST_API_TOKEN}` },
-        },
-      );
-      console.log(`Marked Todoist task: "${title}" as done`);
-    }
-
+    await api.updateTask(taskId, {
+      content: title,
+      description: `${body}\n\nLink to GitHub issue:\n ${url}`,
+    });
     console.log(`Updated Todoist task: "${title}" with ID ${taskId}`);
+  } catch (error) {
+    console.error("Error updating Todoist task:", error.message);
+  }
+}
+
+async function moveAndCloseTask({ taskId, title }) {
+  try {
+    await api.moveTask(taskId, { sectionId: TODOIST_DONE_SECTION_ID });
+    console.log(`Moved Todoist task: "${title}" with ID ${taskId}`);
+
+    await api.closeTask(taskId);
+    console.log(`Marked Todoist task: "${title}" as done`);
   } catch (error) {
     console.error("Error updating Todoist task:", error.message);
   }
@@ -131,12 +105,7 @@ const handleIssue = async (payload) => {
     const taskId = await findTodoistTaskByGitHubIssueId(payload.issue.id);
     if (taskId) {
       const issueData = extractData("issue", payload.issue);
-      await updateTodoistTask({
-        taskId,
-        ...issueData,
-        sectionId: DONE_SECTION_ID,
-        isDone: true,
-      });
+      await moveAndCloseTask({ taskId, ...issueData });
     }
   } else if (["deleted"].includes(payload.action)) {
     const taskId = await findTodoistTaskByGitHubIssueId(payload.issue.id);
@@ -167,12 +136,7 @@ const handlePullRequest = async (payload) => {
     );
     if (taskId) {
       const prData = extractData("pr", payload.pull_request);
-      await updateTodoistTask({
-        taskId,
-        ...prData,
-        sectionId: DONE_SECTION_ID,
-        isDone: true,
-      });
+      await moveAndCloseTask({ taskId, ...prData });
     }
   } else if (["deleted"].includes(payload.action)) {
     const taskId = await findTodoistTaskByGitHubIssueId(
