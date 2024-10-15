@@ -57,35 +57,22 @@ function mapGitHubPriorityToTodoistPriority(priority) {
 
 // Extract relevant data from GitHub webhook payload
 function extractIssueDataFromPayload(payload) {
-  const contentType = payload.projects_v2_item.content_type;
-
-  console.log(payload);
-
-  if (contentType === "Issue" || contentType === "DraftIssue") {
-    const issue = {
-      title: `${payload.issue.title}:${payload.issue.id}` || "No title",
-      body: payload.issue.body || "",
-      url: payload.issue.url,
-    };
-
-    return issue;
-  }
-
-  return null;
+  return {
+    title: `${payload.title}:${payload.number}` || "No title",
+    body: payload.body || "",
+    url: payload.hurl,
+  };
 }
 
 app.post("/github-webhook", async (req, res) => {
   const event = req.headers["x-github-event"];
   const payload = req.body;
-  console.log(payload);
-  if (event === "issues" && payload.action === "opened") {
-    const issue = extractIssueDataFromPayload(payload);
 
-    if (issue) {
-      await createTodoistTask(issue);
-    } else {
-      console.log("No issue data found in the GitHub payload");
-    }
+  if (event === "issues" && payload.action === "opened") {
+    const issue = extractIssueDataFromPayload(payload.issue);
+    await createTodoistTask(issue);
+  } else {
+    console.log("No issue data found in the GitHub payload");
   }
 
   res.status(200).send("Webhook received");
