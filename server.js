@@ -129,7 +129,7 @@ const extractData = (type, payload) => {
 
 // Higher-order function to check if the assignee is 'philtim'
 const withAssigneeCheck = (handler) => async (payload) => {
-  if (payload.assignee?.login !== "philtim") return;
+  if (payload?.assignee?.login !== "philtim") return;
   await handler(payload);
 };
 
@@ -165,14 +165,17 @@ const handleIssue = async (payload) => {
 
   // Map actions to handlers with assignee check applied via currying
   const actionHandlers = {
-    assigned: withAssigneeCheck(handleAssigned),
-    edited: withAssigneeCheck(handleEdited),
-    closed: withAssigneeCheck(handleClosed),
-    deleted: withAssigneeCheck(handleDeleted),
+    assigned: withAssigneeCheck(handleAssigned(payload)),
+    edited: withAssigneeCheck(handleEdited(payload)),
+    closed: withAssigneeCheck(handleClosed(payload)),
+    deleted: withAssigneeCheck(handleDeleted(payload)),
   };
 
   // Use function composition to pick and run the handler if it exists
   const runActionHandler = (action) => actionHandlers[action]?.();
+
+  // Execute the action handler
+  await runActionHandler(payload);
 };
 
 const handlePullRequest = async (payload) => {
