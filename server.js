@@ -127,29 +127,57 @@ const extractData = (type, payload) => {
   };
 };
 
+// Higher-order function to check if the assignee is 'philtim'
+const withAssigneeCheck = (handler) => async (payload) => {
+  if (payload.assignee?.login !== "philtim") return;
+  await handler(payload);
+};
+
 const handleIssue = async (payload) => {
   console.log(payload);
-  if (payload.action === "assigned" && payload.assignee?.login === "philtim") {
+
+  // Define the core logic for each action, without the assignee check
+  const handleAssigned = async (payload) => {
     const issueData = extractData("issue", payload.issue);
     await createTodoistTask({ ...issueData, issueId: payload.issue.id });
-  } else if (payload.action === "edited") {
+  };
+
+  const handleEdited = async (payload) => {
     const taskId = await findTodoistTaskByGitHubIssueId(payload.issue.id);
     if (taskId) {
       const issueData = extractData("issue", payload.issue);
       await updateTodoistTask({ taskId, ...issueData });
     }
-  } else if (["closed"].includes(payload.action)) {
+  };
+
+  const handleClosed = async (payload) => {
     const taskId = await findTodoistTaskByGitHubIssueId(payload.issue.id);
     if (taskId) {
       const issueData = extractData("issue", payload.issue);
       await moveAndCloseTask({ taskId, ...issueData });
     }
-  } else if (["deleted"].includes(payload.action)) {
+  };
+
+  const handleDeleted = async (payload) => {
     const taskId = await findTodoistTaskByGitHubIssueId(payload.issue.id);
     if (taskId) {
       await deleteTodoistTask(taskId);
     }
-  }
+  };
+
+  // Map actions to handlers with assignee check applied via currying
+  const actionHandlers = {
+    assigned: withAssigneeCheck(handleAssigned),
+    edited: withAssigneeCheck(handleEdited),
+    closed: withAssigneeCheck(handleClosed),
+    deleted: withAssigneeCheck(handleDeleted),
+  };
+
+  // Use function composition to pick and run the handler if it exists
+  const runActionHandler = (action) => actionHandlers[action]?.();
+
+  // Execute the action handler
+  await runActionHandler(payload.action);
 };
 
 const handlePullRequest = async (payload) => {
