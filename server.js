@@ -58,6 +58,24 @@ async function deleteTodoistTask(taskId) {
   }
 }
 
+async function updateTodoistTask({ taskId, title, body, url }) {
+  try {
+    await axios.post(
+      `${TODOIST_API_URL}/${taskId}`,
+      {
+        content: title,
+        description: `${body}\n\nLink to GitHub issue:\n ${url}`,
+      },
+      {
+        headers: { Authorization: `Bearer ${TODOIST_API_TOKEN}` },
+      },
+    );
+    console.log(`Updated Todoist task: "${title}" with ID ${taskId}`);
+  } catch (error) {
+    console.error("Error updating Todoist task:", error.message);
+  }
+}
+
 const extractData = (type, payload) => {
   let title;
 
@@ -80,6 +98,11 @@ const handleIssue = async (payload) => {
   if (payload.action === "assigned" && payload.assignee?.login === "philtim") {
     const issueData = extractData("issue", payload.issue);
     await createTodoistTask({ ...issueData, issueId: payload.issue.id });
+  } else if (payload.action === "edited") {
+    const taskId = await findTodoistTaskByGitHubIssueId(payload.issue.id);
+    if (taskId) {
+      await updateTodoistTask({ taskId, ...issueData });
+    }
   } else if (["closed", "deleted"].includes(payload.action)) {
     const taskId = await findTodoistTaskByGitHubIssueId(payload.issue.id);
     if (taskId) {
@@ -95,6 +118,13 @@ const handlePullRequest = async (payload) => {
   ) {
     const prData = extractData("pr", payload.pull_request);
     await createTodoistTask({ ...prData, issueId: payload.pull_request.id });
+  } else if (payload.action === "edited") {
+    const taskId = await findTodoistTaskByGitHubIssueId(
+      payload.pull_request.id,
+    );
+    if (taskId) {
+      await updateTodoistTask({ taskId, ...prData });
+    }
   } else if (["closed", "deleted"].includes(payload.action)) {
     const taskId = await findTodoistTaskByGitHubIssueId(
       payload.pull_request.id,
