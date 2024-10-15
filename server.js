@@ -78,9 +78,8 @@ const extractData = (type, payload) => {
 
 const handleIssue = async (payload) => {
   if (payload.action === "assigned" && payload.assignee?.login === "philtim") {
-    await createTodoistTask(extractData("issue", payload.issue));
-  } else if (payload.action === "edited") {
-    console.log("Issue edited");
+    const issueData = extractData("issue", payload.issue);
+    await createTodoistTask({ ...issueData, issueId: payload.issue.id });
   } else if (["closed", "deleted"].includes(payload.action)) {
     const taskId = await findTodoistTaskByGitHubIssueId(payload.issue.id);
     if (taskId) {
@@ -91,10 +90,11 @@ const handleIssue = async (payload) => {
 
 const handlePullRequest = async (payload) => {
   if (
-    ["opened", "reopened", "assigned"].includes(payload.action) &&
+    ["opened", "reopened"].includes(payload.action) &&
     payload.assignee?.login === "philtim"
   ) {
-    await createTodoistTask(extractData("pr", payload.pull_request));
+    const prData = extractData("pull_request", payload.pull_request);
+    await createTodoistTask({ ...prData, issueId: payload.pull_request.id });
   } else if (["closed", "deleted"].includes(payload.action)) {
     const taskId = await findTodoistTaskByGitHubIssueId(
       payload.pull_request.id,
