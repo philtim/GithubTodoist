@@ -15,41 +15,21 @@ const TODOIST_SYNC_API_URL = "https://api.todoist.com/sync/v9/sync";
 
 const api = new TodoistApi(TODOIST_API_TOKEN);
 
-function generateUUID() {
-  return uuidv4();
-}
-
-async function createTodoistTask({ title, body, url, issueId }) {
+const createTodoistItem = async ({ title, body, url, issueId, sectionId }) => {
   try {
     const task = await api.addTask({
       content: title,
       description: `${body}\n\nLink to GitHub issue:\n ${url}`,
       projectId: TODOIST_PROJECT_ID,
-      sectionId: TODOIST_SECTION_ID,
+      sectionId,
       labels: [`github_issue_${issueId}`],
     });
-    console.log(`Created Todoist task: "${title}" with ID ${task.id}`);
+    console.log(`Created Todoist item: "${title}" with ID ${task.id}`);
     return task.id;
   } catch (error) {
-    console.error("Error creating Todoist task:", error.message);
+    console.error("Error creating Todoist item:", error.message);
   }
-}
-
-async function createTodoistPR({ title, body, url, issueId }) {
-  try {
-    const task = await api.addTask({
-      content: title,
-      description: `${body}\n\nLink to GitHub issue:\n ${url}`,
-      projectId: TODOIST_PROJECT_ID,
-      sectionId: TODOIST_PR_SECTION_ID,
-      labels: [`github_issue_${issueId}`],
-    });
-    console.log(`Created Todoist PR: "${title}" with ID ${task.id}`);
-    return task.id;
-  } catch (error) {
-    console.error("Error creating Todoist PR:", error.message);
-  }
-}
+};
 
 async function findTodoistTaskByGitHubIssueId(issueId) {
   try {
@@ -89,7 +69,7 @@ async function moveAndCloseTask({ taskId, title }) {
   try {
     const moveCommand = {
       type: "item_move",
-      uuid: generateUUID(),
+      uuid: uuidv4(),
       args: {
         id: taskId,
         section_id: TODOIST_DONE_SECTION_ID,
@@ -126,28 +106,19 @@ async function moveAndCloseTask({ taskId, title }) {
   }
 }
 
-const extractData = (type, payload) => {
-  let title;
+const extractData = (type, payload) => ({
+  title:
+    type === "issue"
+      ? `Issue ${payload.number}: ${payload.title}`
+      : `PR: ${payload.title}`,
+  body: payload.body || "",
+  url: payload.html_url,
+});
 
-  if (type === "issue") {
-    title = `Issue ${payload.number}: ${payload.title}`;
-  } else if (type === "pr") {
-    title = `PR: ${payload.title}`;
-  } else {
-    title = payload.title || "Untitled";
+const withAssigneeCheck = (handler, type) => async (payload) => {
+  if (payload[type]?.assignee?.login === "philtim") {
+    await handler(payload);
   }
-
-  return {
-    title,
-    body: payload.body || "",
-    url: payload.html_url,
-  };
-};
-
-// Higher-order function to check if the assignee is 'philtim'
-const withAssigneeCheck = (handler) => async (payload) => {
-  if (payload.issue?.assignee?.login !== "philtim") return;
-  await handler(payload);
 };
 
 const handleAssigned = async (payload) => {
@@ -157,7 +128,11 @@ const handleAssigned = async (payload) => {
   if (taskId) {
     await updateTodoistTask({ taskId, ...issueData });
   } else {
-    await createTodoistTask({ ...issueData, issueId: payload.issue.id });
+    await createTodoistItem({
+      ...issueData,
+      issueId: payload.issue.id,
+      sectionId: TODOIST_SECTION_ID,
+    });
   }
 };
 
@@ -178,12 +153,11 @@ const handleDeleted = async (payload) => {
 };
 
 const handleIssue = async (payload) => {
-  // Map actions to handlers without invoking them immediately
   const actionHandlers = {
-    assigned: withAssigneeCheck(handleAssigned),
-    edited: withAssigneeCheck(handleAssigned),
-    closed: withAssigneeCheck(handleClosed),
-    deleted: withAssigneeCheck(handleDeleted),
+    assigned: withAssigneeCheck(handleAssigned, "issue"),
+    edited: withAssigneeCheck(handleAssigned, "issue"),
+    closed: withAssigneeCheck(handleClosed, "issue"),
+    deleted: withAssigneeCheck(handleDeleted, "issue"),
   };
 
   // Retrieve the correct handler based on the action
@@ -197,11 +171,6 @@ const handleIssue = async (payload) => {
   }
 };
 
-const withAssigneeCheckPR = (handler) => async (payload) => {
-  if (payload.pull_request?.assignee?.login !== "philtim") return;
-  await handler(payload);
-};
-
 const handlePR = async (payload) => {
   const prData = extractData("pr", payload.pull_request);
   const taskId = await findTodoistTaskByGitHubIssueId(payload.pull_request.id);
@@ -209,7 +178,11 @@ const handlePR = async (payload) => {
   if (taskId) {
     await updateTodoistTask({ taskId, ...prData });
   } else {
-    await createTodoistPR({ ...prData, issueId: payload.pull_request.id });
+    await createTodoistItem({
+      ...prData,
+      issueId: payload.pull_request.id,
+      sectionId: TODOIST_PR_SECTION_ID,
+    });
   }
 };
 
@@ -218,6 +191,7 @@ const handlePRClosed = async (payload) => {
   if (taskId) {
     const prData = extractData("pr", payload.pull_request);
     await moveAndCloseTask({ taskId, ...prData });
+    console.log(`Closed Todoist task with ID ${taskId}`);
   }
 };
 
@@ -225,18 +199,19 @@ const handlePRDeleted = async (payload) => {
   const taskId = await findTodoistTaskByGitHubIssueId(payload.pull_request.id);
   if (taskId) {
     await deleteTodoistTask(taskId);
+    console.log(`Deleted Todoist task with ID ${taskId}`);
   }
 };
 
 const handlePullRequest = async (payload) => {
   // Map actions to handlers without invoking them immediately
   const actionHandlers = {
-    opened: withAssigneeCheckPR(handlePR),
-    reopened: withAssigneeCheckPR(handlePR),
-    assigned: withAssigneeCheckPR(handlePR),
-    edited: withAssigneeCheckPR(handlePR),
-    closed: withAssigneeCheckPR(handlePRClosed),
-    deleted: withAssigneeCheckPR(handlePRDeleted),
+    opened: withAssigneeCheck(handlePR, "pull_request"),
+    reopened: withAssigneeCheck(handlePR, "pull_request"),
+    assigned: withAssigneeCheck(handlePR, "pull_request"),
+    edited: withAssigneeCheck(handlePR, "pull_request"),
+    closed: withAssigneeCheck(handlePRClosed),
+    deleted: withAssigneeCheck(handlePRDeleted),
   };
 
   // Retrieve the correct handler based on the action
