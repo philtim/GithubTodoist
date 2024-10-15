@@ -62,6 +62,8 @@ function mapGitHubPriorityToTodoistPriority(priority) {
 function extractIssueDataFromPayload(payload) {
   const contentType = payload.projects_v2_item.content_type;
 
+  console.log(payload);
+
   if (contentType === "Issue" || contentType === "DraftIssue") {
     const issue = {
       title: payload.projects_v2_item.title || "No title", // Get issue title
@@ -110,7 +112,7 @@ app.post("/github-webhook", async (req, res) => {
 });
 
 // Start the server
-const PORT = process.env.PORT || 8090;
+const PORT = process.env.PORT;
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
 });
