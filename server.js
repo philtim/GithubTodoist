@@ -129,53 +129,56 @@ const extractData = (type, payload) => {
 
 // Higher-order function to check if the assignee is 'philtim'
 const withAssigneeCheck = (handler) => async (payload) => {
-  if (payload?.assignee?.login !== "philtim") return;
+  if (payload.issue?.assignee?.login !== "philtim") return;
   await handler(payload);
 };
 
-const handleIssue = async (payload) => {
-  // Define the core logic for each action, without the assignee check
-  const handleAssigned = async (payload) => {
+const handleAssigned = async (payload) => {
+  const issueData = extractData("issue", payload.issue);
+  await createTodoistTask({ ...issueData, issueId: payload.issue.id });
+};
+
+const handleEdited = async (payload) => {
+  const taskId = await findTodoistTaskByGitHubIssueId(payload.issue.id);
+  if (taskId) {
     const issueData = extractData("issue", payload.issue);
-    await createTodoistTask({ ...issueData, issueId: payload.issue.id });
-  };
+    await updateTodoistTask({ taskId, ...issueData });
+  }
+};
 
-  const handleEdited = async (payload) => {
-    const taskId = await findTodoistTaskByGitHubIssueId(payload.issue.id);
-    if (taskId) {
-      const issueData = extractData("issue", payload.issue);
-      await updateTodoistTask({ taskId, ...issueData });
-    }
-  };
+const handleClosed = async (payload) => {
+  const taskId = await findTodoistTaskByGitHubIssueId(payload.issue.id);
+  if (taskId) {
+    const issueData = extractData("issue", payload.issue);
+    await moveAndCloseTask({ taskId, ...issueData });
+  }
+};
 
-  const handleClosed = async (payload) => {
-    const taskId = await findTodoistTaskByGitHubIssueId(payload.issue.id);
-    if (taskId) {
-      const issueData = extractData("issue", payload.issue);
-      await moveAndCloseTask({ taskId, ...issueData });
-    }
-  };
+const handleDeleted = async (payload) => {
+  const taskId = await findTodoistTaskByGitHubIssueId(payload.issue.id);
+  if (taskId) {
+    await deleteTodoistTask(taskId);
+  }
+};
 
-  const handleDeleted = async (payload) => {
-    const taskId = await findTodoistTaskByGitHubIssueId(payload.issue.id);
-    if (taskId) {
-      await deleteTodoistTask(taskId);
-    }
-  };
-
-  // Map actions to handlers with assignee check applied via currying
+const handleIssue = async (payload) => {
+  // Map actions to handlers without invoking them immediately
   const actionHandlers = {
-    assigned: withAssigneeCheck(handleAssigned(payload)),
-    edited: withAssigneeCheck(handleEdited(payload)),
-    closed: withAssigneeCheck(handleClosed(payload)),
-    deleted: withAssigneeCheck(handleDeleted(payload)),
+    assigned: withAssigneeCheck(handleAssigned),
+    edited: withAssigneeCheck(handleEdited),
+    closed: withAssigneeCheck(handleClosed),
+    deleted: withAssigneeCheck(handleDeleted),
   };
 
-  // Use function composition to pick and run the handler if it exists
-  const runActionHandler = (action) => actionHandlers[action]?.();
+  // Retrieve the correct handler based on the action
+  const handler = actionHandlers[payload.action];
 
-  // Execute the action handler
-  await runActionHandler(payload);
+  // Execute the action handler if it exists, passing in the payload
+  if (handler) {
+    await handler(payload);
+  } else {
+    console.log(`No handler for action: ${payload.action}`);
+  }
 };
 
 const handlePullRequest = async (payload) => {
@@ -220,9 +223,9 @@ app.post("/github-webhook", async (req, res) => {
   const event = req.headers["x-github-event"];
   const payload = req.body;
 
-  console.log("----------");
-  console.log(event);
-  console.log(payload.action);
+  console.log("START: ----------");
+  console.log("EVENT: ", event);
+  console.log("ACTION: ", payload.action);
 
   const handler = eventHandlers[event];
   if (handler) {
