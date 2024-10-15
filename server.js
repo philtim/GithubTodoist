@@ -101,6 +101,7 @@ const handleIssue = async (payload) => {
   } else if (payload.action === "edited") {
     const taskId = await findTodoistTaskByGitHubIssueId(payload.issue.id);
     if (taskId) {
+      const issueData = extractData("issue", payload.issue);
       await updateTodoistTask({ taskId, ...issueData });
     }
   } else if (["closed", "deleted"].includes(payload.action)) {
@@ -123,6 +124,7 @@ const handlePullRequest = async (payload) => {
       payload.pull_request.id,
     );
     if (taskId) {
+      const prData = extractData("pr", payload.pull_request);
       await updateTodoistTask({ taskId, ...prData });
     }
   } else if (["closed", "deleted"].includes(payload.action)) {
