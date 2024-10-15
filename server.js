@@ -57,7 +57,7 @@ const handleIssue = async (payload) => {
 
 const handlePullRequest = async (payload) => {
   if (
-    ["opened", "reopened"].includes(payload.action) &&
+    ["opened", "reopened", "assigned"].includes(payload.action) &&
     payload.assignee?.login === "philtim"
   ) {
     await createTodoistTask(extractData("pr", payload.pull_request));
