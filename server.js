@@ -215,7 +215,7 @@ const handlePR = async (payload) => {
 
 const handlePRClosed = async (payload) => {
   const taskId = await findTodoistTaskByGitHubIssueId(payload.pull_request.id);
-  if (taskId && payload.pull_request.merged) {
+  if (taskId) {
     const prData = extractData("pr", payload.pull_request);
     await moveAndCloseTask({ taskId, ...prData });
   }
