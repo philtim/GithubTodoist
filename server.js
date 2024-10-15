@@ -1,4 +1,6 @@
 const express = require("express");
+const axios = require("axios");
+const { v4: uuidv4 } = require("uuid");
 const { TodoistApi } = require("@doist/todoist-api-typescript");
 require("dotenv").config();
 
@@ -8,8 +10,13 @@ app.use(express.json());
 const { TODOIST_API_TOKEN, TODOIST_PROJECT_ID, TODOIST_SECTION_ID, PORT } =
   process.env;
 const TODOIST_DONE_SECTION_ID = "170393795";
+const TODOIST_SYNC_API_URL = "https://api.todoist.com/sync/v9/sync";
 
 const api = new TodoistApi(TODOIST_API_TOKEN);
+
+function generateUUID() {
+  return uuidv4();
+}
 
 async function createTodoistTask({ title, body, url, issueId }) {
   try {
@@ -63,8 +70,37 @@ async function updateTodoistTask({ taskId, title, body, url }) {
 
 async function moveAndCloseTask({ taskId, title }) {
   try {
-    await api.moveTask(taskId, { sectionId: TODOIST_DONE_SECTION_ID });
-    console.log(`Moved Todoist task: "${title}" with ID ${taskId}`);
+    const moveCommand = {
+      type: "item_move",
+      uuid: generateUUID(),
+      args: {
+        id: taskId,
+        section_id: TODOIST_DONE_SECTION_ID,
+      },
+    };
+
+    const response = await axios.post(
+      TODOIST_SYNC_API_URL,
+      {
+        commands: JSON.stringify([moveCommand]),
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${TODOIST_API_TOKEN}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+      },
+    );
+
+    if (response.data.sync_status[moveCommand.uuid] === "ok") {
+      console.log(
+        `Moved Todoist task: "${title}" with ID ${taskId} to Done section`,
+      );
+    } else {
+      console.error(
+        `Failed to move Todoist task: "${title}" with ID ${taskId}`,
+      );
+    }
 
     await api.closeTask(taskId);
     console.log(`Marked Todoist task: "${title}" as done`);
