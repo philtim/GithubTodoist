@@ -61,13 +61,21 @@ async function deleteTodoistTask(taskId) {
   }
 }
 
-async function updateTodoistTask({ taskId, title, body, url }) {
+async function updateTodoistTask({
+  taskId,
+  title,
+  body,
+  url,
+  sectionId,
+  isDone,
+}) {
   try {
     await axios.post(
       `${TODOIST_API_URL}/${taskId}`,
       {
         content: title,
         description: `${body}\n\nLink to GitHub issue:\n ${url}`,
+        section_id: sectionId || TODOIST_SECTION_ID,
       },
       {
         headers: { Authorization: `Bearer ${TODOIST_API_TOKEN}` },
