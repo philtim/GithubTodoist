@@ -12,22 +12,19 @@ const TODOIST_PROJECT_ID = process.env.TODOIST_PROJECT_ID;
 
 // Helper function to create a Todoist task
 async function createTodoistTask(issue) {
-  const title = issue.title || "Untitled issue"; // GitHub issue title
-  const description = issue.body || "No description provided"; // GitHub issue body
-  const githubIssueUrl = issue.html_url; // URL to GitHub issue
-  const priority = issue.priority || 1; // Set priority (default to 1 if not provided)
+  const title = issue.title || "Untitled issue";
+  const description = issue.body || "No description provided";
+  const githubIssueUrl = issue.url;
 
-  // Create the full description for the Todoist task
-  const todoistDescription = `${description}\n\nLink to GitHub issue: ${githubIssueUrl}`;
+  const todoistDescription = `${description}\n\nLink to GitHub issue:\n ${githubIssueUrl}`;
 
   try {
     await axios.post(
       TODOIST_API_URL,
       {
-        content: title, // Task title
-        description: todoistDescription, // Task description with GitHub link
-        project_id: TODOIST_PROJECT_ID, // Add task to a specific Todoist project
-        priority: mapGitHubPriorityToTodoistPriority(priority), // Map GitHub priority to Todoist priority
+        content: title,
+        description: todoistDescription,
+        project_id: TODOIST_PROJECT_ID,
       },
       {
         headers: {
@@ -66,10 +63,9 @@ function extractIssueDataFromPayload(payload) {
 
   if (contentType === "Issue" || contentType === "DraftIssue") {
     const issue = {
-      title: payload.projects_v2_item.title || "No title", // Get issue title
-      body: payload.projects_v2_item.body || "", // Get issue description/body
-      html_url: `https://github.com/${payload.organization.login}/issues/${payload.projects_v2_item.id}`, // Construct GitHub issue URL
-      priority: extractPriorityFromChanges(payload.changes), // Extract priority (if applicable)
+      title: `${payload.issue.title}:${payload.issue.id}` || "No title",
+      body: payload.issue.body || "",
+      url: payload.issue.url,
     };
 
     return issue;
@@ -78,21 +74,6 @@ function extractIssueDataFromPayload(payload) {
   return null;
 }
 
-// Extract priority from GitHub webhook changes (if available)
-function extractPriorityFromChanges(changes) {
-  if (
-    changes &&
-    changes.field_value &&
-    changes.field_value.field_name === "Priority"
-  ) {
-    // Assuming priorities are mapped in a GitHub project field
-    return changes.field_value.new_value; // Adjust based on how priority is stored in your GitHub project
-  }
-
-  return 1; // Default priority (low)
-}
-
-// Endpoint to receive GitHub webhooks
 app.post("/github-webhook", async (req, res) => {
   const event = req.headers["x-github-event"];
   const payload = req.body;
@@ -101,7 +82,6 @@ app.post("/github-webhook", async (req, res) => {
     const issue = extractIssueDataFromPayload(payload);
 
     if (issue) {
-      // Create Todoist task using real data from GitHub issue
       await createTodoistTask(issue);
     } else {
       console.log("No issue data found in the GitHub payload");
