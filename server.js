@@ -146,9 +146,11 @@ const handleAssigned = async (payload) => {
 
 const handleEdited = async (payload) => {
   const taskId = await findTodoistTaskByGitHubIssueId(payload.issue.id);
+  const issueData = extractData("issue", payload.issue);
   if (taskId) {
-    const issueData = extractData("issue", payload.issue);
     await updateTodoistTask({ taskId, ...issueData });
+  } else {
+    await createTodoistTask({ ...issueData, issueId: payload.issue.id });
   }
 };
 
