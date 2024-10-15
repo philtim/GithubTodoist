@@ -8,22 +8,53 @@ app.use(express.json()); // Use built-in JSON parser
 const TODOIST_API_URL = "https://api.todoist.com/rest/v2/tasks";
 const { TODOIST_API_TOKEN, TODOIST_PROJECT_ID, PORT } = process.env;
 
-async function createTodoistTask({ title, body, url }) {
+async function createTodoistTask({ title, body, url, issueId }) {
   try {
-    await axios.post(
+    const response = await axios.post(
       TODOIST_API_URL,
       {
         content: title,
         description: `${body}\n\nLink to GitHub issue:\n ${url}`,
         project_id: TODOIST_PROJECT_ID,
+        labels: [`github_issue_${issueId}`], // Add a label with the GitHub issue ID
       },
       {
         headers: { Authorization: `Bearer ${TODOIST_API_TOKEN}` },
       },
     );
-    console.log(`Created Todoist task: "${title}"`);
+    console.log(`Created Todoist task: "${title}" with ID ${response.data.id}`);
+    return response.data.id; // Return the Todoist task ID
   } catch (error) {
     console.error("Error creating Todoist task:", error.message);
+  }
+}
+
+async function findTodoistTaskByGitHubIssueId(issueId) {
+  try {
+    const response = await axios.get(TODOIST_API_URL, {
+      headers: { Authorization: `Bearer ${TODOIST_API_TOKEN}` },
+      params: { project_id: TODOIST_PROJECT_ID },
+    });
+
+    const task = response.data.find((task) =>
+      task.labels.includes(`github_issue_${issueId}`),
+    );
+
+    return task ? task.id : null;
+  } catch (error) {
+    console.error("Error finding Todoist task:", error.message);
+    return null;
+  }
+}
+
+async function deleteTodoistTask(taskId) {
+  try {
+    await axios.delete(`${TODOIST_API_URL}/${taskId}`, {
+      headers: { Authorization: `Bearer ${TODOIST_API_TOKEN}` },
+    });
+    console.log(`Deleted Todoist task with ID ${taskId}`);
+  } catch (error) {
+    console.error("Error deleting Todoist task:", error.message);
   }
 }
 
@@ -32,7 +63,7 @@ const extractData = (type, payload) => {
 
   if (type === "issue") {
     title = `Issue ${payload.number}: ${payload.title}`;
-  } else if (type === "pull_request") {
+  } else if (type === "pr") {
     title = `PR: ${payload.title}`;
   } else {
     title = payload.title || "Untitled";
@@ -51,7 +82,10 @@ const handleIssue = async (payload) => {
   } else if (payload.action === "edited") {
     console.log("Issue edited");
   } else if (["closed", "deleted"].includes(payload.action)) {
-    console.log("Issue closed or deleted");
+    const taskId = await findTodoistTaskByGitHubIssueId(payload.issue.id);
+    if (taskId) {
+      await deleteTodoistTask(taskId);
+    }
   }
 };
 
@@ -61,6 +95,13 @@ const handlePullRequest = async (payload) => {
     payload.assignee?.login === "philtim"
   ) {
     await createTodoistTask(extractData("pr", payload.pull_request));
+  } else if (["closed", "deleted"].includes(payload.action)) {
+    const taskId = await findTodoistTaskByGitHubIssueId(
+      payload.pull_request.id,
+    );
+    if (taskId) {
+      await deleteTodoistTask(taskId);
+    }
   }
 };
 
