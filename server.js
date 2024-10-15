@@ -58,15 +58,19 @@ function mapGitHubPriorityToTodoistPriority(priority) {
 // Extract relevant data from GitHub webhook payload
 function extractIssueDataFromPayload(payload) {
   return {
-    title: `${payload.title}:${payload.number}` || "No title",
+    title: `${payload.title}: ${payload.number}` || "No title",
     body: payload.body || "",
-    url: payload.hurl,
+    url: payload.url,
   };
 }
 
 app.post("/github-webhook", async (req, res) => {
   const event = req.headers["x-github-event"];
   const payload = req.body;
+
+  console.log(event);
+  console.log("----------");
+  console.log(payload);
 
   if (event === "issues") {
     const issue = extractIssueDataFromPayload(payload.issue);
