@@ -10,6 +10,7 @@ app.use(express.json());
 const { TODOIST_API_TOKEN, TODOIST_PROJECT_ID, TODOIST_SECTION_ID, PORT } =
   process.env;
 const TODOIST_DONE_SECTION_ID = "170393795";
+const TODOIST_PR_SECTION_ID = "170492117";
 const TODOIST_SYNC_API_URL = "https://api.todoist.com/sync/v9/sync";
 
 const api = new TodoistApi(TODOIST_API_TOKEN);
@@ -31,6 +32,22 @@ async function createTodoistTask({ title, body, url, issueId }) {
     return task.id;
   } catch (error) {
     console.error("Error creating Todoist task:", error.message);
+  }
+}
+
+async function createTodoistPR({ title, body, url, issueId }) {
+  try {
+    const task = await api.addTask({
+      content: title,
+      description: `${body}\n\nLink to GitHub issue:\n ${url}`,
+      projectId: TODOIST_PROJECT_ID,
+      sectionId: TODOIST_PR_SECTION_ID,
+      labels: [`github_issue_${issueId}`],
+    });
+    console.log(`Created Todoist PR: "${title}" with ID ${task.id}`);
+    return task.id;
+  } catch (error) {
+    console.error("Error creating Todoist PR:", error.message);
   }
 }
 
@@ -144,18 +161,9 @@ const handleAssigned = async (payload) => {
   }
 };
 
-const handleEdited = async (payload) => {
-  const taskId = await findTodoistTaskByGitHubIssueId(payload.issue.id);
-  const issueData = extractData("issue", payload.issue);
-  if (taskId) {
-    await updateTodoistTask({ taskId, ...issueData });
-  } else {
-    await createTodoistTask({ ...issueData, issueId: payload.issue.id });
-  }
-};
-
 const handleClosed = async (payload) => {
   const taskId = await findTodoistTaskByGitHubIssueId(payload.issue.id);
+
   if (taskId) {
     const issueData = extractData("issue", payload.issue);
     await moveAndCloseTask({ taskId, ...issueData });
@@ -173,7 +181,7 @@ const handleIssue = async (payload) => {
   // Map actions to handlers without invoking them immediately
   const actionHandlers = {
     assigned: withAssigneeCheck(handleAssigned),
-    edited: withAssigneeCheck(handleEdited),
+    edited: withAssigneeCheck(handleAssigned),
     closed: withAssigneeCheck(handleClosed),
     deleted: withAssigneeCheck(handleDeleted),
   };
@@ -189,36 +197,56 @@ const handleIssue = async (payload) => {
   }
 };
 
-const handlePullRequest = async (payload) => {
-  if (
-    ["opened", "reopened", "assigned"].includes(payload.action) &&
-    payload.assignee?.login === "philtim"
-  ) {
+const withAssigneeCheckPR = (handler) => async (payload) => {
+  if (payload.pull_request?.assignee?.login !== "philtim") return;
+  await handler(payload);
+};
+
+const handlePR = async (payload) => {
+  const prData = extractData("pr", payload.pull_request);
+  const taskId = await findTodoistTaskByGitHubIssueId(payload.pull_request.id);
+
+  if (taskId) {
+    await updateTodoistTask({ taskId, ...prData });
+  } else {
+    await createTodoistPR({ ...prData, issueId: payload.pull_request.id });
+  }
+};
+
+const handlePRClosed = async (payload) => {
+  const taskId = await findTodoistTaskByGitHubIssueId(payload.pull_request.id);
+  if (taskId && payload.pull_request.merged) {
     const prData = extractData("pr", payload.pull_request);
-    await createTodoistTask({ ...prData, issueId: payload.pull_request.id });
-  } else if (payload.action === "edited") {
-    const taskId = await findTodoistTaskByGitHubIssueId(
-      payload.pull_request.id,
-    );
-    if (taskId) {
-      const prData = extractData("pr", payload.pull_request);
-      await updateTodoistTask({ taskId, ...prData });
-    }
-  } else if (payload.action === "closed" && payload.pull_request.merged) {
-    const taskId = await findTodoistTaskByGitHubIssueId(
-      payload.pull_request.id,
-    );
-    if (taskId) {
-      const prData = extractData("pr", payload.pull_request);
-      await moveAndCloseTask({ taskId, ...prData });
-    }
-  } else if (["deleted"].includes(payload.action)) {
-    const taskId = await findTodoistTaskByGitHubIssueId(
-      payload.pull_request.id,
-    );
-    if (taskId) {
-      await deleteTodoistTask(taskId);
-    }
+    await moveAndCloseTask({ taskId, ...prData });
+  }
+};
+
+const handlePRDeleted = async (payload) => {
+  const taskId = await findTodoistTaskByGitHubIssueId(payload.pull_request.id);
+  if (taskId) {
+    await deleteTodoistTask(taskId);
+  }
+};
+
+const handlePullRequest = async (payload) => {
+  // Map actions to handlers without invoking them immediately
+  const actionHandlers = {
+    opened: withAssigneeCheckPR(handlePR),
+    reopened: withAssigneeCheckPR(handlePR),
+    assigned: withAssigneeCheckPR(handlePR),
+    edited: withAssigneeCheckPR(handlePR),
+    closed: withAssigneeCheckPR(handlePRClosed),
+    deleted: withAssigneeCheckPR(handlePRDeleted),
+  };
+
+  // Retrieve the correct handler based on the action
+  const handler = actionHandlers[payload.action];
+
+  // Execute the action handler if it exists, passing in the payload
+  if (handler) {
+    await handler(payload);
+  } else {
+    console.log(`No handler for action: ${payload.action}`);
   }
 };
 
