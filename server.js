@@ -6,7 +6,8 @@ const app = express();
 app.use(express.json()); // Use built-in JSON parser
 
 const TODOIST_API_URL = "https://api.todoist.com/rest/v2/tasks";
-const { TODOIST_API_TOKEN, TODOIST_PROJECT_ID, PORT } = process.env;
+const { TODOIST_API_TOKEN, TODOIST_PROJECT_ID, TODOIST_DEFAULT_SECTION, PORT } =
+  process.env;
 
 async function createTodoistTask({ title, body, url, issueId }) {
   try {
@@ -16,6 +17,7 @@ async function createTodoistTask({ title, body, url, issueId }) {
         content: title,
         description: `${body}\n\nLink to GitHub issue:\n ${url}`,
         project_id: TODOIST_PROJECT_ID,
+        section_id: TODOIST_DEFAULT_SECTION,
         labels: [`github_issue_${issueId}`], // Add a label with the GitHub issue ID
       },
       {
