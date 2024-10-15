@@ -73,7 +73,10 @@ app.post("/github-webhook", async (req, res) => {
   console.log(payload);
 
   if (event === "issues") {
-    if (payload.action === "opened") {
+    if (
+      payload.action === "assigned" &&
+      payload.assignee?.login === "philtim"
+    ) {
       const issue = extractIssueDataFromPayload(payload.issue);
       await createTodoistTask(issue);
     } else if (payload.action === "edited") {
