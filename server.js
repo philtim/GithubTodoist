@@ -77,6 +77,8 @@ function extractIssueDataFromPayload(payload) {
 app.post("/github-webhook", async (req, res) => {
   const event = req.headers["x-github-event"];
   const payload = req.body;
+  console.log("----- POST received");
+  console.log(req);
 
   if (event === "projects_v2_item" && payload) {
     const issue = extractIssueDataFromPayload(payload);
