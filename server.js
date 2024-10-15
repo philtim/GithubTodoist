@@ -60,7 +60,7 @@ function extractIssueDataFromPayload(payload) {
   return {
     title: `${payload.title}: ${payload.number}` || "No title",
     body: payload.body || "",
-    url: payload.url,
+    url: payload.html_url,
   };
 }
 
