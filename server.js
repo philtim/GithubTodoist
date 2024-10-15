@@ -93,7 +93,7 @@ const handlePullRequest = async (payload) => {
     ["opened", "reopened", "assigned"].includes(payload.action) &&
     payload.assignee?.login === "philtim"
   ) {
-    const prData = extractData("pull_request", payload.pull_request);
+    const prData = extractData("pr", payload.pull_request);
     await createTodoistTask({ ...prData, issueId: payload.pull_request.id });
   } else if (["closed", "deleted"].includes(payload.action)) {
     const taskId = await findTodoistTaskByGitHubIssueId(
