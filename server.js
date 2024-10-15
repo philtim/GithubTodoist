@@ -134,8 +134,6 @@ const withAssigneeCheck = (handler) => async (payload) => {
 };
 
 const handleIssue = async (payload) => {
-  console.log(payload);
-
   // Define the core logic for each action, without the assignee check
   const handleAssigned = async (payload) => {
     const issueData = extractData("issue", payload.issue);
@@ -175,13 +173,9 @@ const handleIssue = async (payload) => {
 
   // Use function composition to pick and run the handler if it exists
   const runActionHandler = (action) => actionHandlers[action]?.();
-
-  // Execute the action handler
-  await runActionHandler(payload.action);
 };
 
 const handlePullRequest = async (payload) => {
-  console.log(payload);
   if (
     ["opened", "reopened", "assigned"].includes(payload.action) &&
     payload.assignee?.login === "philtim"
@@ -223,8 +217,8 @@ app.post("/github-webhook", async (req, res) => {
   const event = req.headers["x-github-event"];
   const payload = req.body;
 
-  console.log(event);
   console.log("----------");
+  console.log(event);
   console.log(payload.action);
 
   const handler = eventHandlers[event];

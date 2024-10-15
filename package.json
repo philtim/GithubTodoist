@@ -13,7 +13,8 @@
     "@doist/todoist-api-typescript": "^3.0.3",
     "axios": "^1.7.7",
     "body-parser": "^1.20.3",
-    "express": "^4.21.1"
+    "express": "^4.21.1",
+    "nodemon": "^3.1.7"
   },
   "devDependencies": {
     "dotenv": "^16.4.5",
