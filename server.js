@@ -90,7 +90,7 @@ const handleIssue = async (payload) => {
 
 const handlePullRequest = async (payload) => {
   if (
-    ["opened", "reopened"].includes(payload.action) &&
+    ["opened", "reopened", "assigned"].includes(payload.action) &&
     payload.assignee?.login === "philtim"
   ) {
     const prData = extractData("pull_request", payload.pull_request);
@@ -116,7 +116,7 @@ app.post("/github-webhook", async (req, res) => {
 
   console.log(event);
   console.log("----------");
-  console.log(payload);
+  console.log(payload.action);
 
   const handler = eventHandlers[event];
   if (handler) {
