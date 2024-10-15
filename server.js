@@ -73,10 +73,20 @@ app.post("/github-webhook", async (req, res) => {
   console.log(payload);
 
   if (event === "issues") {
-    const issue = extractIssueDataFromPayload(payload.issue);
-    await createTodoistTask(issue);
+    if (payload.action === "opened") {
+      const issue = extractIssueDataFromPayload(payload.issue);
+      await createTodoistTask(issue);
+    } else if (payload.action === "edited") {
+      console.log("edited");
+    } else if (payload.action === "closed" || payload.action === "deleted") {
+      console.log("deleted");
+    }
+  } else if (event === "pull_request") {
+    if (payload.action === "opened" || payload.action === "reopened") {
+      console.log("new pull request created");
+    }
   } else {
-    console.log("No issue data found in the GitHub payload");
+    console.log(`No event handler found for ${event}`);
   }
 
   res.status(200).send("Webhook received");
