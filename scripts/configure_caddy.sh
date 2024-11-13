@@ -4,7 +4,7 @@ delete_flag=$2
 
 caddyfile="/etc/caddy/Caddyfile"
 subdomain="todoist.t7lab.com"
-reverse_proxy_entry="http://${subdomain} {\n  reverse_proxy [::1]:${port}\n}\n"
+reverse_proxy_entry="${subdomain} {\n  reverse_proxy [::1]:${port}\n}\n"
 
 if [[ "$delete_flag" == "--delete" ]]; then
     # Delete the existing entry for this subdomain
