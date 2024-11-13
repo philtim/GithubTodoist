@@ -94,7 +94,7 @@ jobs:
                 --header "X-Auth-Email: ${{ vars.CLOUDFLARE_EMAIL }}" \
                 --header "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_KEY }}" \
                 --header "Content-Type: application/json" \
-                --data '"'"'{"name":"'$SUBDOMAIN'","proxied":true,"settings":{},"tags":[],"ttl":3600,"content":"${{ vars.SSH_HOST }}","type":"A","comment":"Created at '$TIMESTAMP'"}'"'"'')
+                --data '"'"'{"name":"'$SUBDOMAIN'","proxied":false,"settings":{},"tags":[],"ttl":3600,"content":"${{ vars.SSH_HOST }}","type":"A","comment":"Created at '$TIMESTAMP'"}'"'"'')
 
           CREATE_HTTP_STATUS=$(echo "$CREATE_RESPONSE" | tail -n1)
           CREATE_BODY=$(echo "$CREATE_RESPONSE" | sed '$ d')
