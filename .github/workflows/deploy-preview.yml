@@ -15,7 +15,7 @@ jobs:
     environment: sync
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Log in to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
@@ -36,7 +36,7 @@ jobs:
           docker push ghcr.io/$REPO/$PROJECT_NAME:$SHORT_SHA
 
       - name: Setup SSH
-        uses: webfactory/ssh-agent@v0.7.0
+        uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
           host-keys: ${{ vars.SSH_HOST }}
@@ -56,12 +56,10 @@ jobs:
           docker pull ghcr.io/$REPO/$PROJECT_NAME:$SHORT_SHA && \
           docker run -d --restart always --name $PROJECT_NAME -p $PORT:$PORT ghcr.io/$REPO/$PROJECT_NAME:$SHORT_SHA"
 
-      - name: Configure NGINX for todoist
+      - name: Configure caddy for Preview
         run: |
-          scp ./scripts/setup_nginx.sh root@${{ vars.SSH_HOST }}:/tmp/setup_nginx.sh
-          ssh root@${{ vars.SSH_HOST }} "chmod +x /tmp/setup_nginx.sh"
-          ssh root@${{ vars.SSH_HOST }} "/tmp/setup_nginx.sh ${{ vars.PORT }}"
-          ssh root@${{ vars.SSH_HOST }} "rm /tmp/setup_nginx.sh"
+          scp ./scripts/configure_caddy.sh github@${{ vars.SSH_HOST }}:/home/github/configure_caddy.sh
+          ssh github@${{ vars.SSH_HOST }} "chmod +x /home/github/configure_caddy.sh && /home/github/configure_caddy.sh ${{ vars.PORT }} && rm /home/github/configure_caddy.sh"
 
       - name: Check and Add DNS Record in Cloudflare
         run: |
